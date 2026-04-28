@@ -1,0 +1,3 @@
+#SETTINGS|theme=dark|accent=purple
+#CATEGORIES|sadasf,ödev
+1|sadasf|ödev|sıkıyosa yapma|true|YUKSEK|2026-01-14|

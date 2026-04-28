@@ -1,0 +1,106 @@
+.root { -fx-font-family: "Segoe UI", "Inter", "Arial"; }
+
+/* Theme */
+.theme-dark { -fx-background-color: #0b1220; }
+.theme-light { -fx-background-color: #f6f7fb; }
+
+/* Accent */
+.accent-blue .primary-btn { -fx-background-color: #5b8cff; }
+.accent-purple .primary-btn { -fx-background-color: #a855f7; }
+
+.accent-blue .chip:selected { -fx-background-color: rgba(91,140,255,0.30); -fx-border-color: rgba(91,140,255,0.75); }
+.accent-purple .chip:selected { -fx-background-color: rgba(168,85,247,0.25); -fx-border-color: rgba(168,85,247,0.70); }
+
+/* Surfaces */
+.topbar, .panel, .stat-card, .task-card { -fx-background-radius: 18; -fx-border-radius: 18; }
+.theme-dark .topbar, .theme-dark .panel, .theme-dark .stat-card, .theme-dark .task-card {
+  -fx-background-color: rgba(255,255,255,0.04); -fx-border-color: rgba(255,255,255,0.08);
+}
+.theme-light .topbar, .theme-light .panel, .theme-light .stat-card, .theme-light .task-card {
+  -fx-background-color: rgba(0,0,0,0.03); -fx-border-color: rgba(0,0,0,0.10);
+}
+
+/* Text */
+.app-title { -fx-font-size: 22px; -fx-font-weight: 800; }
+.theme-dark .app-title { -fx-text-fill: white; }
+.theme-light .app-title { -fx-text-fill: #111827; }
+
+.field-label { -fx-font-weight: 700; }
+.theme-dark .field-label { -fx-text-fill: rgba(255,255,255,0.75); }
+.theme-light .field-label { -fx-text-fill: rgba(17,24,39,0.75); }
+
+.column-title { -fx-font-weight: 900; -fx-font-size: 14px; }
+.theme-dark .column-title { -fx-text-fill: rgba(255,255,255,0.90); }
+.theme-light .column-title { -fx-text-fill: rgba(17,24,39,0.90); }
+
+.theme-dark .column-sub { -fx-text-fill: rgba(255,255,255,0.55); }
+.theme-light .column-sub { -fx-text-fill: rgba(17,24,39,0.55); }
+
+/* Inputs */
+.text-field, .text-area, .combo-box-base, .date-picker { -fx-background-radius: 14; -fx-border-radius: 14; }
+.theme-dark .text-field, .theme-dark .text-area, .theme-dark .combo-box-base, .theme-dark .date-picker {
+  -fx-background-color: rgba(255,255,255,0.06); -fx-text-fill: white; -fx-prompt-text-fill: rgba(255,255,255,0.45);
+  -fx-border-color: rgba(255,255,255,0.10);
+}
+.theme-light .text-field, .theme-light .text-area, .theme-light .combo-box-base, .theme-light .date-picker {
+  -fx-background-color: rgba(255,255,255,0.85); -fx-text-fill: #111827; -fx-prompt-text-fill: rgba(17,24,39,0.45);
+  -fx-border-color: rgba(0,0,0,0.12);
+}
+.search { -fx-padding: 10 12; -fx-min-width: 260px; }
+
+/* Buttons */
+.primary-btn { -fx-text-fill: white; -fx-font-weight: 800; -fx-background-radius: 14; -fx-padding: 10 14; }
+.ghost-btn { -fx-font-weight: 700; -fx-background-radius: 14; -fx-padding: 10 14; }
+.theme-dark .ghost-btn { -fx-background-color: rgba(255,255,255,0.07); -fx-text-fill: white; }
+.theme-light .ghost-btn { -fx-background-color: rgba(0,0,0,0.06); -fx-text-fill: #111827; }
+
+.danger-btn { -fx-font-weight: 800; -fx-background-radius: 14; -fx-padding: 10 14; }
+.theme-dark .danger-btn { -fx-background-color: rgba(255, 90, 90, 0.18); -fx-text-fill: #ffb0b0; }
+.theme-light .danger-btn { -fx-background-color: rgba(255, 90, 90, 0.16); -fx-text-fill: #b91c1c; }
+
+/* Chips */
+.chip { -fx-background-radius: 999; -fx-border-radius: 999; -fx-padding: 8 12; }
+.theme-dark .chip { -fx-background-color: rgba(255,255,255,0.06); -fx-text-fill: rgba(255,255,255,0.85); -fx-border-color: rgba(255,255,255,0.10); }
+.theme-light .chip { -fx-background-color: rgba(0,0,0,0.05); -fx-text-fill: rgba(17,24,39,0.85); -fx-border-color: rgba(0,0,0,0.10); }
+
+/* Stats */
+.stat-card { -fx-min-width: 150px; }
+.stat-label { -fx-font-weight: 700; }
+.theme-dark .stat-label { -fx-text-fill: rgba(255,255,255,0.65); }
+.theme-light .stat-label { -fx-text-fill: rgba(17,24,39,0.65); }
+.stat-value { -fx-font-size: 18px; -fx-font-weight: 900; }
+.theme-dark .stat-value { -fx-text-fill: white; }
+.theme-light .stat-value { -fx-text-fill: #111827; }
+
+/* List & cards */
+.list-view { -fx-background-color: transparent; -fx-padding: 0; }
+.list-cell { -fx-background-color: transparent; -fx-padding: 8 0 8 0; }
+
+.task-title { -fx-font-weight: 900; -fx-font-size: 14px; }
+.theme-dark .task-title { -fx-text-fill: white; }
+.theme-light .task-title { -fx-text-fill: #111827; }
+
+.task-done { -fx-strikethrough: true; }
+.theme-dark .task-done { -fx-text-fill: rgba(255,255,255,0.55); }
+.theme-light .task-done { -fx-text-fill: rgba(17,24,39,0.55); }
+
+.theme-dark .task-note { -fx-text-fill: rgba(255,255,255,0.65); }
+.theme-light .task-note { -fx-text-fill: rgba(17,24,39,0.65); }
+
+.theme-dark .task-date { -fx-text-fill: rgba(255,255,255,0.7); }
+.theme-light .task-date { -fx-text-fill: rgba(17,24,39,0.65); }
+
+.theme-dark .meta { -fx-text-fill: rgba(255,255,255,0.55); }
+.theme-light .meta { -fx-text-fill: rgba(17,24,39,0.55); }
+
+/* Badges */
+.badge { -fx-text-fill: white; -fx-font-weight: 900; -fx-padding: 4 10; -fx-background-radius: 999; }
+.badge-dusuk { -fx-background-color: rgba(90, 255, 170, 0.22); }
+.badge-orta  { -fx-background-color: rgba(255, 220, 90, 0.22); }
+.badge-yuksek{ -fx-background-color: rgba(255, 90, 90, 0.22); }
+.badge-overdue { -fx-background-color: rgba(255, 90, 90, 0.22); }
+.badge-today { -fx-background-color: rgba(255, 214, 90, 0.22); }
+
+/* Card border highlight */
+.card-overdue { -fx-border-color: rgba(255, 90, 90, 0.60); }
+.card-today { -fx-border-color: rgba(255, 214, 90, 0.60); }

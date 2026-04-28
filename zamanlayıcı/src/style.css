@@ -1,0 +1,252 @@
+.root-pane {
+    -fx-background-color: linear-gradient(to bottom right, #0b1220, #162033, #1f2f46);
+    -fx-font-family: "Segoe UI";
+}
+
+.light-root {
+    -fx-background-color: linear-gradient(to bottom right, #eef4ff, #dfe9f7, #f8fbff);
+}
+
+.glass-card {
+    -fx-background-color: rgba(255, 255, 255, 0.10);
+    -fx-background-radius: 26;
+    -fx-border-radius: 26;
+    -fx-border-color: rgba(255,255,255,0.18);
+    -fx-border-width: 1.1;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.26), 26, 0.18, 0, 8);
+}
+
+.hero-card {
+    -fx-background-color: linear-gradient(to bottom right, rgba(255,255,255,0.17), rgba(255,255,255,0.08));
+}
+
+.app-title {
+    -fx-text-fill: white;
+    -fx-font-size: 34px;
+    -fx-font-weight: 800;
+}
+
+.subtitle-label {
+    -fx-text-fill: #cbd5e1;
+    -fx-font-size: 14px;
+}
+
+.section-title {
+    -fx-text-fill: white;
+    -fx-font-size: 18px;
+    -fx-font-weight: 700;
+}
+
+.session-label {
+    -fx-text-fill: #dbeafe;
+    -fx-font-size: 22px;
+    -fx-font-weight: 700;
+}
+
+.timer-label {
+    -fx-text-fill: white;
+    -fx-font-size: 72px;
+    -fx-font-weight: 800;
+}
+
+.mini-status-label {
+    -fx-text-fill: #cbd5e1;
+    -fx-font-size: 14px;
+}
+
+.small-label {
+    -fx-text-fill: #dbe4f0;
+    -fx-font-size: 14px;
+    -fx-font-weight: 600;
+}
+
+.stat-line {
+    -fx-text-fill: white;
+    -fx-font-size: 14px;
+    -fx-font-weight: 600;
+}
+
+.text-field {
+    -fx-background-color: rgba(255,255,255,0.12);
+    -fx-text-fill: white;
+    -fx-prompt-text-fill: #b9c4d3;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-border-color: rgba(255,255,255,0.18);
+    -fx-padding: 12 14 12 14;
+}
+
+.spinner {
+    -fx-background-color: rgba(255,255,255,0.12);
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(255,255,255,0.18);
+    -fx-border-radius: 14;
+}
+
+.spinner .text-field {
+    -fx-background-color: transparent;
+    -fx-text-fill: white;
+    -fx-alignment: center;
+    -fx-font-weight: 700;
+}
+
+.button,
+.toggle-button {
+    -fx-cursor: hand;
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+    -fx-padding: 11 18 11 18;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+}
+
+.action-button {
+    -fx-min-width: 96px;
+}
+
+.primary-button {
+    -fx-background-color: linear-gradient(to right, rgba(96,165,250,0.85), rgba(59,130,246,0.85));
+    -fx-text-fill: white;
+    -fx-border-color: rgba(255,255,255,0.18);
+}
+
+.primary-button:hover {
+    -fx-opacity: 0.92;
+}
+
+.secondary-button {
+    -fx-background-color: rgba(255,255,255,0.14);
+    -fx-text-fill: white;
+    -fx-border-color: rgba(255,255,255,0.20);
+}
+
+.secondary-button:hover {
+    -fx-background-color: rgba(255,255,255,0.22);
+}
+
+.check-box {
+    -fx-text-fill: white;
+    -fx-font-size: 14px;
+}
+
+.small-check {
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+}
+
+.progress-bar {
+    -fx-accent: #60a5fa;
+    -fx-background-radius: 14;
+    -fx-pref-height: 10;
+}
+
+.list-view {
+    -fx-background-color: rgba(255,255,255,0.06);
+    -fx-background-radius: 18;
+    -fx-border-color: rgba(255,255,255,0.14);
+    -fx-border-radius: 18;
+    -fx-padding: 8;
+}
+
+.list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: white;
+    -fx-padding: 9;
+}
+
+.list-cell:filled:selected {
+    -fx-background-color: rgba(255,255,255,0.14);
+    -fx-background-radius: 12;
+}
+
+.chart {
+    -fx-background-color: transparent;
+}
+
+.chart-plot-background {
+    -fx-background-color: rgba(255,255,255,0.05);
+    -fx-background-radius: 18;
+}
+
+.axis {
+    -fx-tick-label-fill: white;
+}
+
+.axis-label {
+    -fx-text-fill: white;
+}
+
+.chart-legend {
+    -fx-background-color: transparent;
+}
+
+.default-color0.chart-bar {
+    -fx-bar-fill: rgba(96, 165, 250, 0.85);
+}
+
+/* LIGHT MODE */
+.light-root .glass-card {
+    -fx-background-color: rgba(255,255,255,0.76);
+    -fx-border-color: rgba(148,163,184,0.24);
+}
+
+.light-root .app-title,
+.light-root .section-title,
+.light-root .timer-label,
+.light-root .stat-line,
+.light-root .small-check,
+.light-root .check-box,
+.light-root .axis-label,
+.light-root .axis,
+.light-root .session-label {
+    -fx-text-fill: #0f172a;
+}
+
+.light-root .subtitle-label,
+.light-root .mini-status-label,
+.light-root .small-label {
+    -fx-text-fill: #334155;
+}
+
+.light-root .secondary-button {
+    -fx-background-color: rgba(148,163,184,0.12);
+    -fx-text-fill: #0f172a;
+    -fx-border-color: rgba(148,163,184,0.28);
+}
+
+.light-root .text-field {
+    -fx-background-color: rgba(255,255,255,0.85);
+    -fx-text-fill: #0f172a;
+    -fx-prompt-text-fill: #64748b;
+    -fx-border-color: rgba(148,163,184,0.25);
+}
+
+.light-root .spinner {
+    -fx-background-color: rgba(255,255,255,0.88);
+    -fx-border-color: rgba(148,163,184,0.25);
+}
+
+.light-root .spinner .text-field {
+    -fx-text-fill: #0f172a;
+}
+
+.light-root .list-view {
+    -fx-background-color: rgba(255,255,255,0.82);
+    -fx-border-color: rgba(148,163,184,0.22);
+}
+
+.light-root .list-cell {
+    -fx-text-fill: #0f172a;
+}
+
+.light-root .list-cell:filled:selected {
+    -fx-background-color: rgba(148,163,184,0.16);
+}
+
+.light-root .chart-plot-background {
+    -fx-background-color: rgba(226,232,240,0.65);
+}
+
+.light-root .default-color0.chart-bar {
+    -fx-bar-fill: rgba(59,130,246,0.85);
+} 

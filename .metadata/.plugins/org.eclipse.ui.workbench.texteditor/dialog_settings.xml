@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<section name="Workbench">
+	<item key="hasShownOverlayPopupBefore" value="true"/>
+	<section name="java.lang.Class">
+		<list key="findhistory">
+			<item value="canN"/>
+			<item value="can"/>
+			<item value="light"/>
+			<item value="private double getFallDuration()"/>
+			<item value="speed"/>
+			<item value="Scene scene = new Scene(root, 1320, 980);"/>
+			<item value="root.setCenter(mainCard);"/>
+			<item value="copy()"/>
+			<item value="refreshAll()"/>
+			<item value="bottom.getChildren().addAll(rollBtn, endTurnBtn);"/>
+			<item value="buildLayout()"/>
+			<item value="private final Button rollBtn = new Button(&quot;Zar At&quot;);"/>
+			<item value="Tile landed = board.get(newPos);"/>
+			<item value="createDefaultBoard()"/>
+			<item value="private String buttonStyle(boolean hover)"/>
+		</list>
+	</section>
+</section>

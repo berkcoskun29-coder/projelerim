@@ -1,0 +1,2181 @@
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.io.*;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.Random;
+
+// --------------- MAIN FRAME ---------------
+public class TowerDefenseGame extends JFrame {
+
+    public TowerDefenseGame() {
+        setTitle("Java Tower Defense - Skills & Achievements");
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setSize(900, 650);
+        setLocationRelativeTo(null);
+
+        GamePanel panel = new GamePanel();
+        add(panel);
+
+        setVisible(true);
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(TowerDefenseGame::new);
+    }
+}
+
+// --------------- ENUMS ---------------
+enum GameState {
+    MENU,
+    GAME,
+    PAUSE,
+    SETTINGS,
+    MAP_SELECT
+}
+
+enum MapType {
+    MAP1,
+    MAP2
+}
+
+enum Difficulty {
+    EASY,
+    NORMAL,
+    HARD
+}
+
+enum EnemyType {
+    NORMAL,
+    FAST,
+    TANK,
+    BOSS,
+    HEALER,
+    AURA,
+    SMART
+}
+
+enum TowerType {
+    BASIC,
+    SNIPER,
+    SLOW
+}
+
+// --------------- GAME PANEL ---------------
+class GamePanel extends JPanel implements ActionListener, MouseListener, KeyListener {
+
+    // Genel
+    private Timer timer;
+    private Random random = new Random();
+    // Hız kontrolü (C / V ile değişecek)
+    private double speedMultiplier = 1.0; // 0.5x, 1.0x, 2.0x
+    private double updateAccumulator = 0.0;
+    // Basit animasyonlar için global tick
+    private int animTick = 0;
+
+
+    // Oyuncu seviye / XP sistemi
+    private int playerLevel = 1;
+    private int currentXp = 0;
+    private int xpForNextLevel = 100;
+    private double damageMultiplier = 1.0;   // kule hasarı çarpanı
+    private double goldGainMultiplier = 1.0; // altın kazancı çarpanı
+
+    // Game state
+    private GameState state = GameState.MENU;
+    private MapType currentMap = MapType.MAP1;
+    private Difficulty difficulty = Difficulty.NORMAL;
+
+    // Yol & oyun objeleri
+    private List<Point> pathMain = new ArrayList<>();
+    private List<Point> pathAlt = new ArrayList<>();
+    private List<Enemy> enemies = new ArrayList<>();
+    private List<Tower> towers = new ArrayList<>();
+    private List<Bullet> bullets = new ArrayList<>();
+
+    // Oyun değerleri
+    private int score;
+    private int lives;
+    private int gold;
+    private TowerType selectedType = TowerType.BASIC;
+    private Tower selectedTower = null;
+
+    // Wave sistemi
+    private int wave;
+    private int enemiesToSpawnInWave;
+    private int enemiesSpawnedThisWave;
+    private int spawnCounter;
+    private int spawnInterval;
+    private boolean waveActive;
+    private boolean bossSpawnedThisWave;
+
+    // Skill sistemi
+    private boolean meteorArmed = false;
+    private int meteorCooldownTicks = 600;          // ~10sn
+    private int meteorCooldownRemaining = 0;
+    private int meteorDamage = 140;
+    private int meteorRadius = 90;
+
+    private int freezeCooldownTicks = 600;
+    private int freezeCooldownRemaining = 0;
+    private int freezeDurationTicks = 180;          // ~3sn
+    // 🔥 Meteor görsel efektleri
+    private java.util.List<MeteorEffect> meteorEffects = new ArrayList<>();
+
+    // ❄ Freeze ekran efekti (overlay)
+    private int freezeOverlayTicks = 0;
+    // 💥 Düşman ölünce parçacık efektleri
+    private java.util.List<DeathParticle> deathParticles = new ArrayList<>();
+
+    // 💰 Floating text (ör: +20 altın, +XP)
+    private java.util.List<FloatingText> floatingTexts = new ArrayList<>();
+
+    // Achievement takibi
+    private boolean noLifeLostSoFar;
+    private boolean towerSoldEver;
+    private boolean usedNonSlowTower;
+
+    private boolean achWave10NoLifeLost = false;
+    private boolean achNoSellWave10 = false;
+    private boolean achSlowOnlyWave5 = false;
+
+    // UI sabitleri
+    private final Font bigFont = new Font("Arial", Font.BOLD, 32);
+    private final Font midFont = new Font("Arial", Font.BOLD, 20);
+    private final Font smallFont = new Font("Arial", Font.PLAIN, 13);
+
+    // Save dosya adı
+    private final String SAVE_FILE = "towerdefense_save.txt";
+
+    public GamePanel() {
+        setBackground(Color.BLACK);
+        setFocusable(true);
+        addMouseListener(this);
+        addKeyListener(this);
+
+        timer = new Timer(16, this); // ~60 FPS
+        timer.start();
+    }
+
+    // --------- GAME INIT / RESET ---------
+    private void initPathsForMap(MapType map) {
+        pathMain.clear();
+        pathAlt.clear();
+
+        if (map == MapType.MAP1) {
+            // ANA ROTA
+            pathMain.add(new Point(0, 250));
+            pathMain.add(new Point(220, 250));
+            pathMain.add(new Point(220, 420));
+            pathMain.add(new Point(650, 420));
+            pathMain.add(new Point(650, 170));
+            pathMain.add(new Point(880, 170));
+
+            // ALT ROTA
+            pathAlt.add(new Point(0, 300));
+            pathAlt.add(new Point(180, 300));
+            pathAlt.add(new Point(180, 460));
+            pathAlt.add(new Point(600, 460));
+            pathAlt.add(new Point(600, 210));
+            pathAlt.add(new Point(880, 210));
+        } else if (map == MapType.MAP2) {
+            // ANA ROTA
+            pathMain.add(new Point(0, 120));
+            pathMain.add(new Point(200, 120));
+            pathMain.add(new Point(200, 280));
+            pathMain.add(new Point(80, 280));
+            pathMain.add(new Point(80, 430));
+            pathMain.add(new Point(320, 430));
+            pathMain.add(new Point(320, 330));
+            pathMain.add(new Point(700, 330));
+            pathMain.add(new Point(700, 180));
+            pathMain.add(new Point(880, 180));
+
+            // ALT ROTA
+            pathAlt.add(new Point(0, 160));
+            pathAlt.add(new Point(180, 160));
+            pathAlt.add(new Point(180, 320));
+            pathAlt.add(new Point(120, 320));
+            pathAlt.add(new Point(120, 470));
+            pathAlt.add(new Point(360, 470));
+            pathAlt.add(new Point(360, 310));
+            pathAlt.add(new Point(730, 310));
+            pathAlt.add(new Point(730, 210));
+            pathAlt.add(new Point(880, 210));
+        }
+    }
+
+    private void resetGame() {
+        enemies.clear();
+        towers.clear();
+        bullets.clear();
+        selectedTower = null;
+        wave = 1;
+        spawnCounter = 0;
+        enemiesSpawnedThisWave = 0;
+        bossSpawnedThisWave = false;
+
+        // Zorluk bazlı başlangıç değerleri
+        switch (difficulty) {
+            case EASY:
+                lives = 20;
+                gold = 260;
+                break;
+            case NORMAL:
+                lives = 15;
+                gold = 190;
+                break;
+            case HARD:
+                lives = 10;
+                gold = 130;
+                break;
+        }
+        score = 0;
+
+        // Skill cooldown reset
+        meteorCooldownRemaining = 0;
+        freezeCooldownRemaining = 0;
+        meteorArmed = false;
+
+        // 🔥 Görsel efekt reset
+        meteorEffects.clear();
+        freezeOverlayTicks = 0;
+
+        // 💥 Ölüm parçacıkları + floating text reset
+        deathParticles.clear();
+        floatingTexts.clear();
+
+        // Achievement reset
+        noLifeLostSoFar = true;
+        towerSoldEver = false;
+        usedNonSlowTower = false;
+        achWave10NoLifeLost = false;
+        achNoSellWave10 = false;
+        achSlowOnlyWave5 = false;
+
+        // XP & Level reset
+        playerLevel = 1;
+        currentXp = 0;
+        xpForNextLevel = 100;
+        damageMultiplier = 1.0;
+        goldGainMultiplier = 1.0;
+
+        // Hız reset
+        speedMultiplier = 1.0;
+        updateAccumulator = 0.0;
+
+        // Kulelerin global damage çarpanını sıfırla
+        Tower.setGlobalDamageMultiplier(damageMultiplier);
+
+        initPathsForMap(currentMap);
+        startWave(wave);
+    }
+
+    private void startWave(int waveNumber) {
+        waveActive = true;
+        spawnCounter = 0;
+        enemiesSpawnedThisWave = 0;
+        bossSpawnedThisWave = false;
+
+        enemiesToSpawnInWave = 5 + waveNumber * 2;
+        spawnInterval = Math.max(30, 80 - waveNumber * 3);
+    }
+
+    // --------- SAVE / LOAD ---------
+    private void saveGame() {
+        if (state != GameState.GAME && state != GameState.PAUSE) return;
+
+        try (PrintWriter pw = new PrintWriter(new FileWriter(SAVE_FILE))) {
+            pw.println(currentMap.name());
+            pw.println(difficulty.name());
+            pw.println(wave + " " + score + " " + lives + " " + gold);
+
+            pw.println(towers.size());
+            for (Tower t : towers) {
+                pw.println(
+                        t.getX() + " "
+                                + t.getY() + " "
+                                + t.getType().name() + " "
+                                + t.getLevel());
+            }
+
+            JOptionPane.showMessageDialog(this, "Oyun kaydedildi (F9 ile yukleyebilirsin).");
+        } catch (IOException ex) {
+            JOptionPane.showMessageDialog(this, "Kaydetme hatasi: " + ex.getMessage(),
+                    "Hata", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void loadGame() {
+        File f = new File(SAVE_FILE);
+        if (!f.exists()) {
+            JOptionPane.showMessageDialog(this, "Kayit bulunamadi.", "Bilgi", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+            String line;
+
+            MapType m = MapType.valueOf(br.readLine().trim());
+            Difficulty d = Difficulty.valueOf(br.readLine().trim());
+            line = br.readLine();
+            String[] parts = line.split("\\s+");
+            int w = Integer.parseInt(parts[0]);
+            int sc = Integer.parseInt(parts[1]);
+            int lv = Integer.parseInt(parts[2]);
+            int gd = Integer.parseInt(parts[3]);
+
+            currentMap = m;
+            difficulty = d;
+
+            enemies.clear();
+            bullets.clear();
+            towers.clear();
+            selectedTower = null;
+
+            initPathsForMap(currentMap);
+            wave = w;
+            score = sc;
+            lives = lv;
+            gold = gd;
+
+            // XP / Level ve global çarpanları resetle
+            playerLevel = 1;
+            currentXp = 0;
+            xpForNextLevel = 100;
+            damageMultiplier = 1.0;
+            goldGainMultiplier = 1.0;
+            Tower.setGlobalDamageMultiplier(damageMultiplier);
+
+            // Hız ve skill durumu reset
+            speedMultiplier = 1.0;
+            updateAccumulator = 0.0;
+            meteorCooldownRemaining = 0;
+            freezeCooldownRemaining = 0;
+            meteorArmed = false;
+            meteorEffects.clear();
+            freezeOverlayTicks = 0;
+            deathParticles.clear();
+            floatingTexts.clear();
+
+            noLifeLostSoFar = true;    // eski kayıtta ne olduğu tutulmuyor, sıfırladık
+            towerSoldEver = false;
+            usedNonSlowTower = false;
+            achWave10NoLifeLost = false;
+            achNoSellWave10 = false;
+            achSlowOnlyWave5 = false;
+
+            int towerCount = Integer.parseInt(br.readLine().trim());
+            for (int i = 0; i < towerCount; i++) {
+                line = br.readLine();
+                String[] p = line.split("\\s+");
+                double tx = Double.parseDouble(p[0]);
+                double ty = Double.parseDouble(p[1]);
+                TowerType tt = TowerType.valueOf(p[2]);
+                int lvl = Integer.parseInt(p[3]);
+
+                Tower t = new Tower(tx, ty, tt);
+                while (t.getLevel() < lvl && t.canUpgrade()) {
+                    t.forceUpgradeWithoutCost();
+                }
+                towers.add(t);
+
+                if (tt != TowerType.SLOW) {
+                    usedNonSlowTower = true;
+                }
+            }
+
+            startWave(wave);
+            state = GameState.GAME;
+            JOptionPane.showMessageDialog(this, "Oyun yüklendi.");
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Yukleme hatasi: " + ex.getMessage(),
+                    "Hata", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    // --------- TIMER LOOP ---------
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        if (state == GameState.GAME) {
+            // Hız kontrolü: speedMultiplier 2.0 ise aynı frame'de 2 kez updateGame çalışır
+            updateAccumulator += speedMultiplier;
+            while (updateAccumulator >= 1.0) {
+                updateGame();
+                updateAccumulator -= 1.0;
+            }
+        }
+        repaint();
+    }
+
+    private void updateGame() {
+    	animTick++;
+        // Skill cooldown decrement
+        if (meteorCooldownRemaining > 0) meteorCooldownRemaining--;
+        // Skill cooldown decrement
+        if (meteorCooldownRemaining > 0) meteorCooldownRemaining--;
+        if (freezeCooldownRemaining > 0) freezeCooldownRemaining--;
+        // Freeze overlay süresini azalt
+        if (freezeOverlayTicks > 0) {
+            freezeOverlayTicks--;
+        }
+
+        // Meteor efektlerini güncelle
+        Iterator<MeteorEffect> effIt = meteorEffects.iterator();
+        while (effIt.hasNext()) {
+            MeteorEffect eff = effIt.next();
+            eff.update();
+            if (!eff.isAlive()) {
+                effIt.remove();
+            }
+        }
+
+        // 💥 Ölüm parçacıklarını güncelle
+        Iterator<DeathParticle> pIt = deathParticles.iterator();
+        while (pIt.hasNext()) {
+            DeathParticle p = pIt.next();
+            p.update();
+            if (!p.isAlive()) {
+                pIt.remove();
+            }
+        }
+
+        // 💰 Floating text'leri güncelle
+        Iterator<FloatingText> ftIt = floatingTexts.iterator();
+        while (ftIt.hasNext()) {
+            FloatingText ft = ftIt.next();
+            ft.update();
+            if (!ft.isAlive()) {
+                ftIt.remove();
+            }
+        }
+
+        // Spawn
+        if (waveActive) {
+            spawnCounter++;
+
+            boolean bossWave = (wave % 5 == 0);
+
+            if (bossWave && !bossSpawnedThisWave && spawnCounter % spawnInterval == 0) {
+                List<Point> route = chooseRouteForType(EnemyType.BOSS);
+                enemies.add(new Enemy(route.get(0).x, route.get(0).y, EnemyType.BOSS, route));
+                bossSpawnedThisWave = true;
+                enemiesSpawnedThisWave++;
+            } else if (spawnCounter % spawnInterval == 0 && enemiesSpawnedThisWave < enemiesToSpawnInWave) {
+                EnemyType type = pickEnemyTypeForWave(wave, bossWave);
+                List<Point> route = chooseRouteForType(type);
+                enemies.add(new Enemy(route.get(0).x, route.get(0).y, type, route));
+                enemiesSpawnedThisWave++;
+            }
+        }
+
+        // Düşmanlar
+        Iterator<Enemy> enemyIt = enemies.iterator();
+        while (enemyIt.hasNext()) {
+            Enemy en = enemyIt.next();
+            en.update(enemies); // healer vs aura için liste lazım
+
+            if (en.isReachedEnd()) {
+                lives--;
+                noLifeLostSoFar = false;
+                enemyIt.remove();
+            } else if (!en.isAlive()) {
+                // Skor
+                score += en.getScoreValue();
+
+                // Altın: seviye buff'ı ile çarp
+                int gainedGold = (int) Math.round(en.getReward() * goldGainMultiplier);
+                gold += gainedGold;
+
+                // XP kazan
+                int gainedXp = en.getScoreValue();
+                gainXp(gainedXp);
+
+                // 💥 Ölüm parçacıkları oluştur
+                spawnDeathParticles(en, (en.getType() == EnemyType.BOSS));
+
+                // 💰 Floating text ekle (altın + xp)
+                floatingTexts.add(new FloatingText(
+                        en.getX(),
+                        en.getY() - 10,
+                        "+" + gainedGold,
+                        new Color(255, 215, 0)   // altın sarısı
+                ));
+
+                floatingTexts.add(new FloatingText(
+                        en.getX(),
+                        en.getY() - 25,
+                        "+" + gainedXp + " XP",
+                        new Color(180, 220, 255) // açık mavi
+                ));
+
+                enemyIt.remove();
+            }
+        }
+
+        // Dalga bitti mi?
+        if (waveActive && enemiesSpawnedThisWave >= enemiesToSpawnInWave && enemies.isEmpty()) {
+            waveActive = false;
+            wave++;
+            startWave(wave);
+            checkMidRunAchievements();
+        }
+
+        // Kuleler
+        for (Tower t : towers) {
+            t.update(enemies, bullets);
+        }
+
+        // Mermiler
+        Iterator<Bullet> bulletIt = bullets.iterator();
+        while (bulletIt.hasNext()) {
+            Bullet b = bulletIt.next();
+            b.update();
+            if (!b.isAlive()) {
+                bulletIt.remove();
+            }
+        }
+
+        // Game Over
+        if (lives <= 0) {
+            checkGameOverAchievements();
+            state = GameState.MENU;
+            JOptionPane.showMessageDialog(this,
+                    "Oyun Bitti!\nSkor: " + score + "\nUlastigin Dalga: " + wave,
+                    "Game Over",
+                    JOptionPane.INFORMATION_MESSAGE);
+            resetGame();
+        }
+    }
+
+    // ----- XP & Level Sistemi -----
+    private void gainXp(int amount) {
+        currentXp += amount;
+
+        // Birkaç seviye birden atlayabilsin diye while
+        while (currentXp >= xpForNextLevel) {
+            currentXp -= xpForNextLevel;
+            playerLevel++;
+
+            // Bir sonraki seviye için gereken XP'yi artır
+            xpForNextLevel = (int) (xpForNextLevel * 1.4);
+
+            // Her level'da buff ver
+            damageMultiplier += 0.05;      // +%5 kule hasarı
+            goldGainMultiplier += 0.05;    // +%5 altın kazancı
+
+            // Kulelerin global damage çarpanını güncelle
+            Tower.setGlobalDamageMultiplier(damageMultiplier);
+        }
+    }
+
+    // 💥 Düşman ölünce parçacık saçan yardımcı metod
+    private void spawnDeathParticles(Enemy en, boolean big) {
+        int count = big ? 30 : 15;  // boss ise daha fazla parçacık
+        for (int i = 0; i < count; i++) {
+            double angle = Math.random() * Math.PI * 2;
+            double speed = (big ? 2.5 : 2.0) + Math.random() * 1.0;
+            double vx = Math.cos(angle) * speed;
+            double vy = Math.sin(angle) * speed;
+
+            Color c = big
+                    ? new Color(255, 100, 50)
+                    : new Color(230, 60, 60);
+
+            deathParticles.add(new DeathParticle(
+                    en.getX(),
+                    en.getY(),
+                    vx,
+                    vy,
+                    c
+            ));
+        }
+    }
+
+    private EnemyType pickEnemyTypeForWave(int waveNum, boolean bossWave) {
+        int roll = random.nextInt(100);
+
+        // Erken dalgalar: NORMAL/FAST ağırlık
+        if (waveNum < 4) {
+            if (roll < 70) return EnemyType.NORMAL;
+            else if (roll < 90) return EnemyType.FAST;
+            else return EnemyType.HEALER;
+        } else if (waveNum < 7) {
+            if (roll < 40) return EnemyType.NORMAL;
+            else if (roll < 65) return EnemyType.FAST;
+            else if (roll < 80) return EnemyType.TANK;
+            else if (roll < 90) return EnemyType.HEALER;
+            else return EnemyType.AURA;
+        } else {
+            if (roll < 30) return EnemyType.NORMAL;
+            else if (roll < 55) return EnemyType.FAST;
+            else if (roll < 75) return EnemyType.TANK;
+            else if (roll < 88) return EnemyType.HEALER;
+            else if (roll < 96) return EnemyType.AURA;
+            else return EnemyType.SMART;
+        }
+    }
+
+    private List<Point> chooseRouteForType(EnemyType type) {
+        if (pathAlt.isEmpty()) return pathMain;
+
+        if (type != EnemyType.SMART) {
+            // NORMAL random
+            return random.nextBoolean() ? pathMain : pathAlt;
+        }
+
+        // SMART: kule yoğunluğuna göre yol seçsin
+        double mainScore = towerDensityScore(pathMain);
+        double altScore = towerDensityScore(pathAlt);
+        // daha az kule olan yolu tercih et
+        return mainScore <= altScore ? pathMain : pathAlt;
+    }
+
+    private double towerDensityScore(List<Point> path) {
+        double sum = 0;
+        for (Tower t : towers) {
+            // yol segmentlerine olan minimum uzaklık
+            double d = distanceToPath((int) t.getX(), (int) t.getY(), path);
+            sum += 1.0 / (1.0 + d); // yakınsa skor yüksek
+        }
+        return sum;
+    }
+
+    // --------- ACHIEVEMENTS ---------
+    private void checkMidRunAchievements() {
+        // 10. dalgaya can kaybetmeden gel
+        if (!achWave10NoLifeLost && wave >= 10 && noLifeLostSoFar) {
+            achWave10NoLifeLost = true;
+            JOptionPane.showMessageDialog(this,
+                    "Achievement Unlocked:\n\"10. dalgaya can kaybetmeden gel\"",
+                    "Basari", JOptionPane.INFORMATION_MESSAGE);
+        }
+
+        // 10. dalgaya kule satmadan gel
+        if (!achNoSellWave10 && wave >= 10 && !towerSoldEver) {
+            achNoSellWave10 = true;
+            JOptionPane.showMessageDialog(this,
+                    "Achievement Unlocked:\n\"10. dalgaya kule satmadan gel\"",
+                    "Basari", JOptionPane.INFORMATION_MESSAGE);
+        }
+
+        // 5. dalgaya kadar sadece SLOW kule
+        if (!achSlowOnlyWave5 && wave >= 5 && !usedNonSlowTower) {
+            achSlowOnlyWave5 = true;
+            JOptionPane.showMessageDialog(this,
+                    "Achievement Unlocked:\n\"Sadece SLOW kule ile 5. dalgaya gel\"",
+                    "Basari", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    private void checkGameOverAchievements() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Oyun Bitti.\n\nKazandigin Basarilar:\n");
+
+        boolean any = false;
+        if (achWave10NoLifeLost) {
+            sb.append("- 10. dalgaya can kaybetmeden gel\n");
+            any = true;
+        }
+        if (achNoSellWave10) {
+            sb.append("- 10. dalgaya kule satmadan gel\n");
+            any = true;
+        }
+        if (achSlowOnlyWave5) {
+            sb.append("- Sadece slow kule ile 5. dalgaya gel\n");
+            any = true;
+        }
+
+        if (!any) {
+            sb.append("- Henuz basari yok, denemeye devam!\n");
+        }
+
+        JOptionPane.showMessageDialog(this, sb.toString(), "Basari Ozeti", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    // --------- RENDER ---------
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+
+        // Anti-aliasing (daha yumuşak çizimler)
+        Graphics2D g2dAA = (Graphics2D) g;
+        g2dAA.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        switch (state) {
+            case MENU:
+                drawMenu(g);
+                break;
+            case SETTINGS:
+                drawSettings(g);
+                break;
+            case MAP_SELECT:
+                drawMapSelect(g);
+                break;
+            case GAME:
+            case PAUSE:
+                drawGame(g);
+                if (state == GameState.PAUSE) drawPauseOverlay(g);
+                break;
+        }
+    }
+
+    // ---- MENU EKRANI ----
+    private void drawMenu(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g;
+        g2.setColor(new Color(20, 20, 30));
+        g2.fillRect(0, 0, getWidth(), getHeight());
+
+        g2.setFont(bigFont);
+        g2.setColor(Color.WHITE);
+        String title = "JAVA TOWER DEFENSE";
+        int tw = g2.getFontMetrics().stringWidth(title);
+        g2.drawString(title, (getWidth() - tw) / 2, 120);
+
+        g2.setFont(midFont);
+        drawMenuButton(g2, "OYUNA BASLA", 230, 220);
+        drawMenuButton(g2, "MAP SECIMI", 230, 280);
+        drawMenuButton(g2, "AYARLAR", 230, 340);
+        drawMenuButton(g2, "CIKIS", 230, 400);
+
+        g2.setFont(smallFont);
+        g2.setColor(Color.LIGHT_GRAY);
+        g2.drawString("Secili Map: " + currentMap,
+                20, getHeight() - 55);
+        g2.drawString("Zorluk: " + difficulty,
+                20, getHeight() - 35);
+        g2.drawString("Kontroller: 1-2-3 kule | Q Meteor | F Freeze | P Pause | ESC Menu | F5 Save | F9 Load",
+                getWidth() - 540, getHeight() - 35);
+    }
+
+    private void drawMenuButton(Graphics2D g2, String text, int x, int y) {
+        int w = 440;
+        int h = 40;
+        g2.setColor(new Color(50, 50, 80));
+        g2.fillRoundRect(x, y, w, h, 15, 15);
+        g2.setColor(Color.WHITE);
+        g2.drawRoundRect(x, y, w, h, 15, 15);
+
+        int sw = g2.getFontMetrics().stringWidth(text);
+        int sh = g2.getFontMetrics().getAscent();
+        g2.drawString(text, x + (w - sw) / 2, y + (h + sh) / 2 - 3);
+    }
+
+    // ---- SETTINGS EKRANI ----
+    private void drawSettings(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g;
+        g2.setColor(new Color(15, 15, 25));
+        g2.fillRect(0, 0, getWidth(), getHeight());
+
+        g2.setColor(Color.WHITE);
+        g2.setFont(bigFont);
+        String title = "AYARLAR";
+        int tw = g2.getFontMetrics().stringWidth(title);
+        g2.drawString(title, (getWidth() - tw) / 2, 100);
+
+        g2.setFont(midFont);
+        g2.drawString("Zorluk Secimi:", 140, 180);
+
+        drawSettingsButton(g2, "EASY", 140, 210, difficulty == Difficulty.EASY);
+        drawSettingsButton(g2, "NORMAL", 140, 260, difficulty == Difficulty.NORMAL);
+        drawSettingsButton(g2, "HARD", 140, 310, difficulty == Difficulty.HARD);
+
+        g2.setFont(smallFont);
+        g2.setColor(Color.LIGHT_GRAY);
+        g2.drawString("Menuye donmek icin: ESC", 20, getHeight() - 30);
+    }
+
+    private void drawSettingsButton(Graphics2D g2, String text, int x, int y, boolean selected) {
+        int w = 200;
+        int h = 40;
+        g2.setColor(selected ? new Color(70, 120, 70) : new Color(60, 60, 90));
+        g2.fillRoundRect(x, y, w, h, 15, 15);
+        g2.setColor(Color.WHITE);
+        g2.drawRoundRect(x, y, w, h, 15, 15);
+
+        int sw = g2.getFontMetrics().stringWidth(text);
+        int sh = g2.getFontMetrics().getAscent();
+        g2.drawString(text, x + (w - sw) / 2, y + (h + sh) / 2 - 3);
+    }
+
+    // ---- MAP SELECT EKRANI ----
+    private void drawMapSelect(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g;
+        g2.setColor(new Color(10, 10, 20));
+        g2.fillRect(0, 0, getWidth(), getHeight());
+
+        g2.setColor(Color.WHITE);
+        g2.setFont(bigFont);
+        String title = "MAP SECIMI";
+        int tw = g2.getFontMetrics().stringWidth(title);
+        g2.drawString(title, (getWidth() - tw) / 2, 90);
+
+        drawMapPreview(g2, 120, 150, MapType.MAP1, currentMap == MapType.MAP1);
+        drawMapPreview(g2, 500, 150, MapType.MAP2, currentMap == MapType.MAP2);
+
+        g2.setFont(smallFont);
+        g2.setColor(Color.LIGHT_GRAY);
+        g2.drawString("Menuye donmek icin: ESC", 20, getHeight() - 30);
+    }
+
+    private void drawMapPreview(Graphics2D g2, int x, int y, MapType mapType, boolean selected) {
+        int w = 260;
+        int h = 260;
+
+        g2.setColor(selected ? new Color(80, 100, 140) : new Color(40, 40, 70));
+        g2.fillRoundRect(x, y, w, h, 20, 20);
+        g2.setColor(Color.WHITE);
+        g2.drawRoundRect(x, y, w, h, 20, 20);
+
+        g2.setColor(new Color(60, 60, 60));
+        g2.fillRoundRect(x + 15, y + 15, w - 30, h - 30, 15, 15);
+
+        g2.setStroke(new BasicStroke(6));
+        g2.setColor(Color.YELLOW);
+
+        if (mapType == MapType.MAP1) {
+            int sx = x + 20;
+            int sy = y + h / 2;
+            int mx = x + w / 2;
+            int my = y + h / 2;
+            int ex = x + w - 20;
+            int ey = y + 80;
+            g2.drawLine(sx, sy, mx, sy);
+            g2.drawLine(mx, sy, mx, my + 60);
+            g2.drawLine(mx, my + 60, ex, ey);
+        } else {
+            int sx = x + 20;
+            int sy = y + 60;
+            int m1x = x + 100;
+            int m1y = y + 60;
+            int m2x = x + 100;
+            int m2y = y + 160;
+            int m3x = x + 40;
+            int m3y = y + 160;
+            int m4x = x + 200;
+            int m4y = y + 200;
+            int ex = x + w - 25;
+            int ey = y + 120;
+
+            g2.drawLine(sx, sy, m1x, m1y);
+            g2.drawLine(m1x, m1y, m2x, m2y);
+            g2.drawLine(m2x, m2y, m3x, m3y);
+            g2.drawLine(m3x, m3y, m4x, m4y);
+            g2.drawLine(m4x, m4y, ex, ey);
+        }
+
+        g2.setFont(midFont);
+        String label = (mapType == MapType.MAP1) ? "MAP 1" : "MAP 2";
+        int sw = g2.getFontMetrics().stringWidth(label);
+        g2.setColor(Color.WHITE);
+        g2.drawString(label, x + (w - sw) / 2, y + h - 15);
+    }
+
+    // ---- GAME EKRANI ----
+    private void drawGame(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g;
+        // Screen shake offset'i
+        int offsetX = 0;
+        int offsetY = 0;
+        if (shakeTicks > 0) {
+            shakeTicks--;
+            offsetX = random.nextInt(shakeMagnitude * 2 + 1) - shakeMagnitude;
+            offsetY = random.nextInt(shakeMagnitude * 2 + 1) - shakeMagnitude;
+        }
+
+        // Dünya (harita, kuleler, düşmanlar) için translate
+        g2.translate(offsetX, offsetY);
+
+
+        // Zemin karo
+        for (int i = 0; i < getWidth(); i += 40) {
+            for (int j = 0; j < getHeight(); j += 40) {
+                if (((i + j) / 40) % 2 == 0) g2.setColor(new Color(30, 30, 40));
+                else g2.setColor(new Color(25, 25, 35));
+                g2.fillRect(i, j, 40, 40);
+            }
+        }
+
+        // Path MAIN
+        drawPath(g2, pathMain, new Color(90, 80, 40), new Color(160, 150, 90));
+        // Path ALT
+        if (!pathAlt.isEmpty()) {
+            drawPath(g2, pathAlt, new Color(70, 70, 90), new Color(120, 120, 180));
+        }
+    
+
+
+        // Kuleler
+        for (Tower t : towers) drawTower(g2, t);
+
+        // Düşmanlar
+        for (Enemy en : enemies) drawEnemy(g2, en);
+
+     // Mermiler + trail
+        for (Bullet b : bullets) {
+            java.util.List<double[]> tr = b.getTrail();
+            // Önce trail çiz
+            for (int i = 0; i < tr.size(); i++) {
+                double[] p = tr.get(i);
+                // Eskiye gittikçe saydamlaşsın
+                float t = (float) (i + 1) / tr.size(); // 0..1
+                int alpha = (int) (80 * t);           // max 80
+
+                g2.setColor(new Color(200, 200, 255, alpha));
+                int size = 4;
+                g2.fillOval((int) p[0] - size / 2, (int) p[1] - size / 2, size, size);
+            }
+
+            // Mermi başı (daha parlak)
+            g2.setColor(Color.WHITE);
+            g2.fillOval((int) b.getX() - 3, (int) b.getY() - 3, 6, 6);
+        }
+
+
+        // 💥 Ölüm parçacıkları
+        drawDeathParticles(g2);
+
+        // 💰 Floating text'ler
+        drawFloatingTexts(g2);
+
+        // 🔥 Meteor görsel efektleri
+        drawMeteorEffects(g2);
+
+        // ❄ Freeze overlay efekti
+        drawFreezeOverlay(g2);
+
+        // Meteor hedef önizlemesi (Q ile silahlanmışsa)
+        if (meteorArmed) {
+            Point mp = getMousePosition();
+            if (mp != null) {
+                g2.setColor(new Color(255, 120, 0, 70));
+                g2.fillOval(mp.x - meteorRadius, mp.y - meteorRadius,
+                        meteorRadius * 2, meteorRadius * 2);
+                g2.setColor(new Color(255, 200, 100, 150));
+                g2.setStroke(new BasicStroke(2));
+                g2.drawOval(mp.x - meteorRadius, mp.y - meteorRadius,
+                        meteorRadius * 2, meteorRadius * 2);
+            }
+        }
+     // Dünya translate'ini geri al (HUD sabit kalsın)
+        g2.translate(-offsetX, -offsetY);
+
+        // HUD + Kule açıklama paneli
+        drawHUD(g2);
+        drawTowerInfoPanel(g2);
+    }
+
+    // 🔥 Meteor patlama efektlerini çiz
+    private void drawMeteorEffects(Graphics2D g2) {
+        for (MeteorEffect eff : meteorEffects) {
+            eff.draw(g2);
+        }
+    }
+
+    // ❄ Freeze sırasında ekran overlay'i çiz
+    private void drawFreezeOverlay(Graphics2D g2) {
+        if (freezeOverlayTicks <= 0) return;
+
+        // 0..1 arası oran
+        float ratio = freezeOverlayTicks / (float) (freezeDurationTicks + 40);
+        if (ratio < 0f) ratio = 0f;
+        if (ratio > 1f) ratio = 1f;
+
+        int alpha = (int) (80 * ratio); // max 80 opacity
+
+        g2.setColor(new Color(120, 180, 255, alpha));
+        g2.fillRect(0, 0, getWidth(), getHeight());
+    }
+    // Screen shake
+    private int shakeTicks = 0;
+    private int shakeMagnitude = 8;
+
+
+    // 💥 Ölüm parçacıklarını çiz
+    private void drawDeathParticles(Graphics2D g2) {
+        for (DeathParticle p : deathParticles) {
+            p.draw(g2);
+        }
+    }
+
+    // 💰 Floating text'leri çiz
+    private void drawFloatingTexts(Graphics2D g2) {
+        for (FloatingText ft : floatingTexts) {
+            ft.draw(g2);
+        }
+    }
+
+    private void drawPath(Graphics2D g2, List<Point> path, Color base, Color edge) {
+        if (path.size() < 2) return;
+        g2.setStroke(new BasicStroke(30, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g2.setColor(base);
+        for (int i = 0; i < path.size() - 1; i++) {
+            Point p1 = path.get(i);
+            Point p2 = path.get(i + 1);
+            g2.drawLine(p1.x, p1.y, p2.x, p2.y);
+        }
+        g2.setStroke(new BasicStroke(4));
+        g2.setColor(edge);
+        for (int i = 0; i < path.size() - 1; i++) {
+            Point p1 = path.get(i);
+            Point p2 = path.get(i + 1);
+            g2.drawLine(p1.x, p1.y, p2.x, p2.y);
+        }
+    }
+    private Color darken1(Color c, float factor) {
+        factor = Math.max(0f, Math.min(1f, factor));
+        int r = (int) (c.getRed() * factor);
+        int g = (int) (c.getGreen() * factor);
+        int b = (int) (c.getBlue() * factor);
+        return new Color(r, g, b, c.getAlpha());
+    }
+
+
+    private void drawTower(Graphics2D g2, Tower t) {
+        int cx = (int) t.getX();
+        int cy = (int) t.getY();
+
+        // Menzil dairesi (soft)
+        int r = (int) t.getRangeDisplay();
+        g2.setColor(new Color(0, 255, 0, 25));
+        g2.fillOval(cx - r, cy - r, r * 2, r * 2);
+
+        // Kule gölgesi
+        g2.setColor(new Color(0, 0, 0, 120));
+        g2.fillOval(cx - 20, cy - 10 + 10, 40, 20);
+
+        // Tipine göre renkler
+        Color baseColor;
+        Color accentColor;
+        switch (t.getType()) {
+            case BASIC:
+                baseColor = new Color(70, 200, 70);
+                accentColor = new Color(180, 255, 180);
+                break;
+            case SNIPER:
+                baseColor = new Color(80, 200, 230);
+                accentColor = new Color(180, 235, 255);
+                break;
+            case SLOW:
+            default:
+                baseColor = new Color(210, 210, 90);
+                accentColor = new Color(255, 255, 160);
+                break;
+        }
+
+        Color darkBase = darken1(baseColor, 0.7f);
+
+        // Dış gövde (büyük, koyu)
+        g2.setColor(darkBase);
+        g2.fillOval(cx - 18, cy - 18, 36, 36);
+
+        // Ana gövde (biraz küçük, ana renk)
+        g2.setColor(baseColor);
+        g2.fillOval(cx - 15, cy - 15, 30, 30);
+
+        // Üst taret (çok küçük, parlak)
+        g2.setColor(accentColor);
+        g2.fillOval(cx - 9, cy - 9, 18, 18);
+        g2.setColor(Color.BLACK);
+        g2.drawOval(cx - 9, cy - 9, 18, 18);
+
+        // Namlu (şimdilik yukarı bakıyor, tipine göre renk)
+        g2.setStroke(new BasicStroke(5, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        if (t.getType() == TowerType.SLOW) {
+            g2.setColor(new Color(120, 170, 255));
+        } else if (t.getType() == TowerType.SNIPER) {
+            g2.setColor(new Color(60, 60, 60));
+        } else {
+            g2.setColor(new Color(90, 90, 90));
+        }
+        g2.drawLine(cx, cy, cx, cy - 22);
+
+        // Level halkaları (kule etrafında küçük yaylar)
+        g2.setStroke(new BasicStroke(2));
+        for (int i = 0; i < t.getLevel(); i++) {
+            float startAngle = 60 + i * 70;   // seviyeye göre farklı açılar
+            g2.setColor(new Color(255, 255, 255, 160));
+            g2.drawArc(cx - 22, cy - 22, 44, 44,
+                    (int) startAngle, 40);
+        }
+
+        // Tip ikonu (küçük harf veya sembol)
+        g2.setFont(new Font("Arial", Font.BOLD, 11));
+        g2.setColor(Color.BLACK);
+        String iconText;
+        if (t.getType() == TowerType.BASIC) iconText = "B";
+        else if (t.getType() == TowerType.SNIPER) iconText = "S";
+        else iconText = "L"; // Slow
+        int sw = g2.getFontMetrics().stringWidth(iconText);
+        g2.drawString(iconText, cx - sw / 2, cy + 4);
+
+        // Seçili kule vurgusu
+        if (t == selectedTower) {
+            g2.setStroke(new BasicStroke(2));
+            g2.setColor(new Color(255, 230, 120));
+            g2.drawOval(cx - 22, cy - 22, 44, 44);
+        }
+    }
+
+
+    private void drawEnemy(Graphics2D g2, Enemy en) {
+        int cx = (int) en.getX();
+        int baseCy = (int) en.getY();
+
+        // Hafif yukarı-aşağı zıplama (bobbing)
+        int bob = (int) (Math.sin((animTick + cx) * 0.25) * 2); // -2..2 piksel
+        int cy = baseCy + bob;
+
+        boolean isBoss = (en.getType() == EnemyType.BOSS);
+        int size = isBoss ? 30 : 22;
+
+
+        // AURA ve HEALER için hafif aura halkası
+        if (en.getType() == EnemyType.AURA) {
+            g2.setColor(new Color(255, 255, 0, 40));
+            int auraR = 45;
+            g2.fillOval(cx - auraR, cy - auraR, auraR * 2, auraR * 2);
+        } else if (en.getType() == EnemyType.HEALER) {
+            g2.setColor(new Color(120, 255, 160, 35));
+            int auraR = 40;
+            g2.fillOval(cx - auraR, cy - auraR, auraR * 2, auraR * 2);
+        }
+
+        // Boss için dış parıltı
+        if (isBoss) {
+            g2.setColor(new Color(200, 120, 255, 80));
+            int glow = size + 16;
+            g2.fillOval(cx - glow / 2, cy - glow / 2, glow, glow);
+        }
+
+        // Gövde rengi
+        Color bodyColor;
+        switch (en.getType()) {
+            case NORMAL:
+                bodyColor = new Color(220, 60, 60);
+                break;
+            case FAST:
+                bodyColor = new Color(245, 160, 60);
+                break;
+            case TANK:
+                bodyColor = new Color(120, 60, 60);
+                break;
+            case BOSS:
+                bodyColor = new Color(170, 70, 200);
+                break;
+            case HEALER:
+                bodyColor = new Color(80, 200, 140);
+                break;
+            case AURA:
+                bodyColor = new Color(230, 220, 90);
+                break;
+            case SMART:
+            default:
+                bodyColor = new Color(80, 170, 230);
+                break;
+        }
+
+        Color borderColor = darken1(bodyColor, 0.7f);
+        Color innerColor = new Color(
+                Math.min(255, bodyColor.getRed() + 25),
+                Math.min(255, bodyColor.getGreen() + 25),
+                Math.min(255, bodyColor.getBlue() + 25)
+        );
+
+        // Gövde (iki katmanlı, yuvarlatılmış kare)
+        int half = size / 2;
+        g2.setColor(borderColor);
+        g2.fillRoundRect(cx - half - 2, cy - half - 2, size + 4, size + 4, 10, 10);
+
+        g2.setColor(bodyColor);
+        g2.fillRoundRect(cx - half, cy - half, size, size, 10, 10);
+
+        // Ortada iç parlama
+        g2.setColor(innerColor);
+        g2.fillRoundRect(cx - half + 3, cy - half + 3, size - 6, size - 6, 8, 8);
+
+        // Kenar çizgisi
+        g2.setColor(Color.BLACK);
+        g2.setStroke(new BasicStroke(isBoss ? 2.5f : 1.8f));
+        g2.drawRoundRect(cx - half, cy - half, size, size, 10, 10);
+
+        // Basit "gözler"
+        g2.setColor(new Color(30, 30, 30));
+        int eyeOffsetX = 4;
+        int eyeOffsetY = 3;
+        g2.fillOval(cx - eyeOffsetX - 2, cy - eyeOffsetY, 4, 4);
+        g2.fillOval(cx + eyeOffsetX - 2, cy - eyeOffsetY, 4, 4);
+
+        // HP bar
+        int barW = size + 10;
+        int barH = 5;
+        int bx = cx - barW / 2;
+        int by = cy - half - 12;
+
+        g2.setColor(Color.BLACK);
+        g2.drawRect(bx, by, barW, barH);
+
+        // HP'ye göre renk geçişi (yeşil->kırmızı)
+        float hpRatio = (float) en.getHpRatio();
+        int rr = (int) (255 * (1 - hpRatio));
+        int gg = (int) (200 * hpRatio);
+        g2.setColor(new Color(rr, gg, 50));
+        int hpWidth = (int) (barW * hpRatio);
+        g2.fillRect(bx, by, hpWidth, barH);
+
+        // Özel tip ikonları
+        int iconY = by - 9;
+        g2.setFont(new Font("Arial", Font.BOLD, 10));
+
+        if (en.getType() == EnemyType.HEALER) {
+            g2.setColor(new Color(200, 255, 200));
+            g2.drawString("+", cx - 3, iconY);
+        } else if (en.getType() == EnemyType.AURA) {
+            g2.setColor(new Color(255, 255, 180));
+            g2.drawString("◎", cx - 4, iconY);
+        } else if (en.getType() == EnemyType.SMART) {
+            g2.setColor(new Color(200, 230, 255));
+            g2.drawString("∞", cx - 4, iconY);
+        } else if (en.getType() == EnemyType.TANK) {
+            g2.setColor(new Color(255, 210, 210));
+            g2.drawString("■", cx - 4, iconY);
+        } else if (en.getType() == EnemyType.FAST) {
+            g2.setColor(new Color(255, 235, 200));
+            g2.drawString(">", cx - 3, iconY);
+        }
+    }
+
+
+    private Color darken(Color bodyColor, float f) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	private void drawHUD(Graphics2D g2) {
+        g2.setColor(new Color(0, 0, 0, 180));
+        g2.fillRect(0, 0, getWidth(), 70);
+
+        g2.setColor(Color.WHITE);
+        g2.setFont(new Font("Arial", Font.BOLD, 14));
+        g2.drawString("Skor: " + score, 10, 20);
+        g2.drawString("Can: " + lives, 10, 40);
+        g2.drawString("Altin: " + gold, 110, 20);
+        g2.drawString("Dalga: " + wave, 110, 40);
+
+        // XP / Level
+        g2.drawString("Lv: " + playerLevel + "  XP: " + currentXp + "/" + xpForNextLevel, 10, 60);
+
+        g2.drawString("Secili Kule: " + selectedTypeText(), 240, 20);
+        g2.drawString("1: Basic (50)  |  2: Sniper (90) |  3: Slow (70)", 240, 40);
+
+        // Skill bar
+        g2.drawString("Q: Meteor (" + skillCooldownText(meteorCooldownRemaining) + ")   F: Freeze (" + skillCooldownText(freezeCooldownRemaining) + ")",
+                520, 20);
+
+        // Achievements kısaltma
+        String achText = "Ach: ";
+        if (achWave10NoLifeLost) achText += "W10NL ";
+        if (achNoSellWave10) achText += "W10NS ";
+        if (achSlowOnlyWave5) achText += "SLOW5 ";
+        g2.drawString(achText, 520, 40);
+
+        // Speed gösterimi + kısayol bilgi
+        g2.drawString(String.format("Speed: %.1fx  (C/V)", speedMultiplier), 520, 60);
+    }
+
+    private String selectedTypeText() {
+        if (selectedType == TowerType.BASIC) return "Basic";
+        if (selectedType == TowerType.SNIPER) return "Sniper";
+        return "Slow";
+    }
+
+    private String skillCooldownText(int remaining) {
+        if (remaining <= 0) return "Ready";
+        int sec = remaining / 60;
+        return sec + "s";
+    }
+
+    // Kule açıklama paneli (sağ taraf)
+    private void drawTowerInfoPanel(Graphics2D g2) {
+        int panelX = getWidth() - 230;
+        int panelY = 80;
+        int panelW = 220;
+        int panelH = 190;
+
+        g2.setColor(new Color(0, 0, 0, 180));
+        g2.fillRoundRect(panelX, panelY, panelW, panelH, 15, 15);
+        g2.setColor(Color.WHITE);
+        g2.drawRoundRect(panelX, panelY, panelW, panelH, 15, 15);
+
+        g2.setFont(new Font("Arial", Font.BOLD, 14));
+        g2.drawString("Kule Bilgisi", panelX + 70, panelY + 20);
+
+        g2.setFont(smallFont);
+
+        if (selectedTower == null) {
+            g2.drawString("Kule secmek icin uzerine tikla.", panelX + 15, panelY + 50);
+            g2.drawString("Sol tik: Sec / koy", panelX + 15, panelY + 80);
+            g2.drawString("Sag tik: Sat", panelX + 15, panelY + 100);
+            g2.drawString("U: Upgrade, X: Sat", panelX + 15, panelY + 130);
+            return;
+        }
+
+        Tower t = selectedTower;
+
+        g2.drawString("Tip: " + t.getType(), panelX + 15, panelY + 50);
+        g2.drawString("Level: " + t.getLevel(), panelX + 15, panelY + 70);
+        g2.drawString("Damage: " + t.getBulletDamage(), panelX + 15, panelY + 90);
+        g2.drawString("Menzil: " + (int) t.getRangeBase(), panelX + 15, panelY + 110);
+        g2.drawString("Atis Hizi (tick): " + t.getFireDelay(), panelX + 15, panelY + 130);
+
+        int upgradeCost = t.getUpgradeCost();
+        int sellValue = t.getSellValue();
+
+        g2.drawString("Upgrade Maliyeti: " + (t.canUpgrade() ? upgradeCost : "MAX"), panelX + 15, panelY + 150);
+        g2.drawString("Satma: +" + sellValue + " altin", panelX + 15, panelY + 170);
+
+        g2.setColor(Color.YELLOW);
+        g2.drawString("U: Upgrade    X: Sat", panelX + 50, panelY + 190);
+    }
+
+    private void drawPauseOverlay(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g;
+        g2.setColor(new Color(0, 0, 0, 150));
+        g2.fillRect(0, 0, getWidth(), getHeight());
+
+        g2.setColor(Color.WHITE);
+        g2.setFont(bigFont);
+        String text = "PAUSE";
+        int tw = g2.getFontMetrics().stringWidth(text);
+        g2.drawString(text, (getWidth() - tw) / 2, getHeight() / 2 - 20);
+
+        g2.setFont(smallFont);
+        g2.drawString("Devam: P  |  Menu: ESC", (getWidth() - 200) / 2, getHeight() / 2 + 20);
+    }
+
+    // --------- INPUT (MOUSE / KEYBOARD) ---------
+    @Override
+    public void mouseClicked(MouseEvent e) {
+        int mx = e.getX();
+        int my = e.getY();
+
+        switch (state) {
+            case MENU:
+                handleMenuClick(mx, my);
+                break;
+            case SETTINGS:
+                handleSettingsClick(mx, my);
+                break;
+            case MAP_SELECT:
+                handleMapSelectClick(mx, my);
+                break;
+            case GAME:
+                handleGameClick(e);
+                break;
+            case PAUSE:
+                // pause'da tıklama yok
+                break;
+        }
+    }
+
+    private void handleMenuClick(int mx, int my) {
+        if (isInRect(mx, my, 230, 220, 440, 40)) {
+            resetGame();
+            state = GameState.GAME;
+        } else if (isInRect(mx, my, 230, 280, 440, 40)) {
+            state = GameState.MAP_SELECT;
+        } else if (isInRect(mx, my, 230, 340, 440, 40)) {
+            state = GameState.SETTINGS;
+        } else if (isInRect(mx, my, 230, 400, 440, 40)) {
+            System.exit(0);
+        }
+    }
+
+    private void handleSettingsClick(int mx, int my) {
+        if (isInRect(mx, my, 140, 210, 200, 40)) {
+            difficulty = Difficulty.EASY;
+        } else if (isInRect(mx, my, 140, 260, 200, 40)) {
+            difficulty = Difficulty.NORMAL;
+        } else if (isInRect(mx, my, 140, 310, 200, 40)) {
+            difficulty = Difficulty.HARD;
+        }
+    }
+
+    private void handleMapSelectClick(int mx, int my) {
+        if (isInRect(mx, my, 120, 150, 260, 260)) {
+            currentMap = MapType.MAP1;
+        } else if (isInRect(mx, my, 500, 150, 260, 260)) {
+            currentMap = MapType.MAP2;
+        }
+    }
+
+    private void handleGameClick(MouseEvent e) {
+        int mx = e.getX();
+        int my = e.getY();
+
+        // Meteor skill silahlanmışsa: kule ile uğraşma, meteor at
+        if (meteorArmed) {
+            castMeteor(mx, my);
+            return;
+        }
+
+        // Önce tıklanan yerde kule var mı?
+        Tower t = getTowerAt(mx, my);
+
+        if (e.getButton() == MouseEvent.BUTTON1) { // sol tık
+            if (t != null) {
+                selectedTower = t;
+                return;
+            }
+
+            // Kule yoksa, yeni kule koymayı dene
+            if (!canPlaceTower(mx, my)) {
+                Toolkit.getDefaultToolkit().beep();
+                return;
+            }
+
+            int cost = getCostForType(selectedType);
+            if (gold >= cost) {
+                Tower newTower = new Tower(mx, my, selectedType);
+                towers.add(newTower);
+                gold -= cost;
+                selectedTower = newTower;
+
+                if (selectedType != TowerType.SLOW) {
+                    usedNonSlowTower = true;
+                }
+            } else {
+                Toolkit.getDefaultToolkit().beep();
+            }
+        } else if (e.getButton() == MouseEvent.BUTTON3) { // sağ tık → sat
+            if (t != null) {
+                int refund = t.getSellValue();
+                towers.remove(t);
+                gold += refund;
+                towerSoldEver = true;
+                if (t == selectedTower) selectedTower = null;
+            }
+        }
+    }
+
+    private void castMeteor(int mx, int my) {
+        if (meteorCooldownRemaining > 0) {
+            Toolkit.getDefaultToolkit().beep();
+            meteorArmed = false;
+            return;
+        }
+
+        // Alan hasarı
+        for (Enemy en : enemies) {
+            double dx = en.getX() - mx;
+            double dy = en.getY() - my;
+            double dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist <= meteorRadius) {
+                en.damage(meteorDamage);
+            }
+        }
+     // 🔥 Görsel efekt: patlama animasyonu ekle
+        meteorEffects.add(new MeteorEffect(mx, my));
+
+        // Ekran sarsıntısı başlat
+        shakeTicks = 10; // ~10 frame sarsılsın
+
+        meteorCooldownRemaining = meteorCooldownTicks;
+        meteorArmed = false;
+
+    }
+
+    private void castFreeze() {
+        if (freezeCooldownRemaining > 0) {
+            Toolkit.getDefaultToolkit().beep();
+            return;
+        }
+
+        for (Enemy en : enemies) {
+            en.applyFreeze(freezeDurationTicks);
+        }
+        freezeCooldownRemaining = freezeCooldownTicks;
+        // ❄ Ekran overlay etkisi: biraz uzun tut, sonu fade olsun
+        freezeOverlayTicks = freezeDurationTicks + 40;
+    }
+
+    private boolean isInRect(int mx, int my, int x, int y, int w, int h) {
+        return mx >= x && mx <= x + w && my >= y && my <= y + h;
+    }
+
+    private Tower getTowerAt(int mx, int my) {
+        for (Tower t : towers) {
+            double dx = mx - t.getX();
+            double dy = my - t.getY();
+            double dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist <= 18) return t;
+        }
+        return null;
+    }
+
+    private boolean canPlaceTower(int x, int y) {
+        // HUD üstüne koyma
+        if (y < 80) return false;
+
+        // Sağdaki info paneline çok girmesin
+        if (x > getWidth() - 230) return false;
+
+        // Ekran kenarı
+        if (x < 30 || x > getWidth() - 30) return false;
+        if (y > getHeight() - 30) return false;
+
+        // Diğer kulelerle çakışma
+        for (Tower t : towers) {
+            double dx = x - t.getX();
+            double dy = y - t.getY();
+            double dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 35) return false;
+        }
+
+        // Yolun çok yakını olmasın (ana ve alt path)
+        if (distanceToPath(x, y, pathMain) < 35) return false;
+        if (!pathAlt.isEmpty() && distanceToPath(x, y, pathAlt) < 35) return false;
+
+        return true;
+    }
+
+    private double distanceToPath(int x, int y, List<Point> path) {
+        double min = Double.MAX_VALUE;
+        for (int i = 0; i < path.size() - 1; i++) {
+            Point a = path.get(i);
+            Point b = path.get(i + 1);
+            double d = distancePointToSegment(x, y, a.x, a.y, b.x, b.y);
+            if (d < min) min = d;
+        }
+        return min;
+    }
+
+    private double distancePointToSegment(double px, double py,
+                                          double x1, double y1,
+                                          double x2, double y2) {
+        double vx = x2 - x1;
+        double vy = y2 - y1;
+        double wx = px - x1;
+        double wy = py - y1;
+
+        double c1 = vx * wx + vy * wy;
+        if (c1 <= 0) return Math.hypot(px - x1, py - y1);
+
+        double c2 = vx * vx + vy * vy;
+        if (c2 <= c1) return Math.hypot(px - x2, py - y2);
+
+        double b = c1 / c2;
+        double bx = x1 + b * vx;
+        double by = y1 + b * vy;
+        return Math.hypot(px - bx, py - by);
+    }
+
+    private int getCostForType(TowerType type) {
+        switch (type) {
+            case BASIC:
+                return 50;
+            case SNIPER:
+                return 90;
+            case SLOW:
+                return 70;
+        }
+        return 50;
+    }
+
+    // KEYBOARD
+    @Override
+    public void keyPressed(KeyEvent e) {
+        int code = e.getKeyCode();
+
+        if (state == GameState.GAME || state == GameState.PAUSE) {
+            if (code == KeyEvent.VK_1 || code == KeyEvent.VK_NUMPAD1) {
+                selectedType = TowerType.BASIC;
+            } else if (code == KeyEvent.VK_2 || code == KeyEvent.VK_NUMPAD2) {
+                selectedType = TowerType.SNIPER;
+            } else if (code == KeyEvent.VK_3 || code == KeyEvent.VK_NUMPAD3) {
+                selectedType = TowerType.SLOW;
+            } else if (code == KeyEvent.VK_P) {
+                if (state == GameState.GAME) state = GameState.PAUSE;
+                else if (state == GameState.PAUSE) state = GameState.GAME;
+            } else if (code == KeyEvent.VK_ESCAPE) {
+                state = GameState.MENU;
+            } else if (code == KeyEvent.VK_F5) {
+                saveGame();
+            } else if (code == KeyEvent.VK_F9) {
+                loadGame();
+            } else if (code == KeyEvent.VK_U) {
+                // Seçili kule upgrade
+                if (selectedTower != null) {
+                    int cost = selectedTower.getUpgradeCost();
+                    if (selectedTower.canUpgrade() && gold >= cost) {
+                        gold -= cost;
+                        selectedTower.upgrade();
+                    } else {
+                        Toolkit.getDefaultToolkit().beep();
+                    }
+                }
+            } else if (code == KeyEvent.VK_X) {
+                // Seçili kule sat
+                if (selectedTower != null) {
+                    int refund = selectedTower.getSellValue();
+                    towers.remove(selectedTower);
+                    gold += refund;
+                    towerSoldEver = true;
+                    selectedTower = null;
+                }
+            } else if (code == KeyEvent.VK_Q) {
+                // Meteor silahlanır (bir sonraki sol click alanını seçer)
+                if (meteorCooldownRemaining <= 0) {
+                    meteorArmed = true;
+                } else {
+                    Toolkit.getDefaultToolkit().beep();
+                }
+            } else if (code == KeyEvent.VK_F) {
+                castFreeze();
+            } else if (code == KeyEvent.VK_C) {
+                // Hızı azalt: 2.0x -> 1.0x -> 0.5x
+                if (speedMultiplier == 2.0) speedMultiplier = 1.0;
+                else if (speedMultiplier == 1.0) speedMultiplier = 0.5;
+            } else if (code == KeyEvent.VK_V) {
+                // Hızı arttır: 0.5x -> 1.0x -> 2.0x
+                if (speedMultiplier == 0.5) speedMultiplier = 1.0;
+                else if (speedMultiplier == 1.0) speedMultiplier = 2.0;
+            }
+
+        } else if (state == GameState.MENU ||
+                   state == GameState.SETTINGS ||
+                   state == GameState.MAP_SELECT) {
+            if (code == KeyEvent.VK_ESCAPE) {
+                state = GameState.MENU;
+            } else if (code == KeyEvent.VK_F9) {
+                loadGame();
+            }
+        }
+    }
+
+    @Override public void keyTyped(KeyEvent e) { }
+    @Override public void keyReleased(KeyEvent e) { }
+
+    @Override public void mousePressed(MouseEvent e) { }
+    @Override public void mouseReleased(MouseEvent e) { }
+    @Override public void mouseEntered(MouseEvent e) { }
+    @Override public void mouseExited(MouseEvent e) { }
+}
+
+// --------------- ENEMY ---------------
+class Enemy {
+    private double x, y;
+    private int pathIndex = 1;
+
+    private double baseSpeed;
+    private double currentSpeed;
+    private int slowTicks = 0;
+    private int freezeTicks = 0;
+
+    private int maxHp;
+    private int hp;
+    private boolean reachedEnd = false;
+    private boolean alive = true;
+    private int reward;
+    private int scoreValue;
+    private EnemyType type;
+    private List<Point> path;
+
+    // Healer için
+    private int healCooldown = 0;
+    private int healInterval = 150;
+    private int healAmount = 20;
+    private int healRadius = 80;
+
+    // Aura için
+    private int auraRadius = 120;
+
+    public Enemy(double startX, double startY, EnemyType type, List<Point> path) {
+        this.x = startX;
+        this.y = startY;
+        this.type = type;
+        this.path = path;
+
+        switch (type) {
+            case NORMAL:
+                maxHp = 100;
+                baseSpeed = 1.2;
+                reward = 20;
+                scoreValue = 10;
+                break;
+            case FAST:
+                maxHp = 80;
+                baseSpeed = 1.9;
+                reward = 18;
+                scoreValue = 12;
+                break;
+            case TANK:
+                maxHp = 250;
+                baseSpeed = 0.7;
+                reward = 35;
+                scoreValue = 25;
+                break;
+            case BOSS:
+                maxHp = 700;
+                baseSpeed = 0.6;
+                reward = 100;
+                scoreValue = 120;
+                break;
+            case HEALER:
+                maxHp = 120;
+                baseSpeed = 1.0;
+                reward = 30;
+                scoreValue = 18;
+                healInterval = 140;
+                healAmount = 25;
+                healRadius = 90;
+                break;
+            case AURA:
+                maxHp = 180;
+                baseSpeed = 1.0;
+                reward = 35;
+                scoreValue = 22;
+                auraRadius = 130;
+                break;
+            case SMART:
+                maxHp = 150;
+                baseSpeed = 1.3;
+                reward = 40;
+                scoreValue = 28;
+                break;
+        }
+        hp = maxHp;
+        currentSpeed = baseSpeed;
+    }
+
+    public void update(List<Enemy> allEnemies) {
+        if (!alive) return;
+
+        // Freeze kontrolü
+        if (freezeTicks > 0) {
+            freezeTicks--;
+            if (hp <= 0) alive = false;
+            return;
+        }
+
+        // Slow süresini azalt
+        if (slowTicks > 0) {
+            slowTicks--;
+            if (slowTicks == 0) currentSpeed = baseSpeed;
+        }
+
+        // Hareket
+        if (pathIndex >= path.size()) {
+            reachedEnd = true;
+            alive = false;
+            return;
+        }
+
+        Point target = path.get(pathIndex);
+        double dx = target.x - x;
+        double dy = target.y - y;
+        double dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < currentSpeed) {
+            x = target.x;
+            y = target.y;
+            pathIndex++;
+        } else {
+            x += currentSpeed * dx / dist;
+            y += currentSpeed * dy / dist;
+        }
+
+        if (hp <= 0) {
+            alive = false;
+            return;
+        }
+
+        // Healer davranışı
+        if (type == EnemyType.HEALER) {
+            healCooldown++;
+            if (healCooldown >= healInterval) {
+                healCooldown = 0;
+                for (Enemy other : allEnemies) {
+                    if (other == this || !other.isAlive()) continue;
+                    double ddx = other.getX() - x;
+                    double ddy = other.getY() - y;
+                    double d = Math.sqrt(ddx * ddx + ddy * ddy);
+                    if (d <= healRadius) {
+                        other.heal(healAmount);
+                    }
+                }
+            }
+        }
+    }
+
+    public void damage(int amount) {
+        hp -= amount;
+        if (hp <= 0) {
+            hp = 0;
+            alive = false;
+        }
+    }
+
+    public void heal(int amount) {
+        hp += amount;
+        if (hp > maxHp) hp = maxHp;
+    }
+
+    public void applySlow(int durationTicks, double factor) {
+        if (factor <= 0 || factor >= 1) return;
+        currentSpeed = baseSpeed * factor;
+        slowTicks = Math.max(slowTicks, durationTicks);
+    }
+
+    public void applyFreeze(int durationTicks) {
+        freezeTicks = Math.max(freezeTicks, durationTicks);
+    }
+
+    public boolean isSlowed() {
+        return slowTicks > 0;
+    }
+
+    public boolean isFrozen() {
+        return freezeTicks > 0;
+    }
+
+    public boolean isReachedEnd() {
+        return reachedEnd;
+    }
+
+    public boolean isAlive() {
+        return alive;
+    }
+
+    public double getX() { return x; }
+    public double getY() { return y; }
+    public double getHpRatio() { return (double) hp / (double) maxHp; }
+    public int getReward() { return reward; }
+    public int getScoreValue() { return scoreValue; }
+    public EnemyType getType() { return type; }
+    public int getAuraRadius() { return auraRadius; }
+}
+
+// --------------- TOWER ---------------
+class Tower {
+
+    // 🔥 GLOBAL DAMAGE ÇARPANI
+    private static double globalDamageMultiplier = 1.0;
+    private double x, y;
+    private double baseRange;
+    private int fireDelay;
+    private int cooldown = 0;
+    private int bulletDamage;
+    private TowerType type;
+    private int level = 1;
+    private final int maxLevel = 3;
+    private boolean slowTower = false;
+
+    private int baseCost;
+    private int totalInvested;
+
+    public Tower(double x, double y, TowerType type) {
+        this.x = x;
+        this.y = y;
+        this.type = type;
+
+        switch (type) {
+            case BASIC:
+                baseRange = 140;
+                fireDelay = 28;
+                bulletDamage = 24;
+                baseCost = 50;
+                break;
+            case SNIPER:
+                baseRange = 260;
+                fireDelay = 70;
+                bulletDamage = 60;
+                baseCost = 90;
+                break;
+            case SLOW:
+                baseRange = 160;
+                fireDelay = 40;
+                bulletDamage = 10;
+                baseCost = 70;
+                slowTower = true;
+                break;
+        }
+        totalInvested = baseCost;
+    }
+
+    public static void setGlobalDamageMultiplier(double value) {
+        globalDamageMultiplier = value;
+    }
+
+    public void update(List<Enemy> enemies, List<Bullet> bullets) {
+        if (cooldown > 0) {
+            cooldown--;
+            return;
+        }
+
+        // Aura düşmanı varsa menzil düşsün
+        double effectiveRange = baseRange;
+        for (Enemy en : enemies) {
+            if (!en.isAlive()) continue;
+            if (en.getType() == EnemyType.AURA) {
+                double dx = en.getX() - x;
+                double dy = en.getY() - y;
+                double d = Math.sqrt(dx * dx + dy * dy);
+                if (d <= en.getAuraRadius()) {
+                    effectiveRange *= 0.7; // menzil düşür
+                }
+            }
+        }
+
+        Enemy target = null;
+        double closestDist = Double.MAX_VALUE;
+
+        for (Enemy en : enemies) {
+            if (!en.isAlive()) continue;
+            double dx = en.getX() - x;
+            double dy = en.getY() - y;
+            double dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist <= effectiveRange && dist < closestDist) {
+                closestDist = dist;
+                target = en;
+            }
+        }
+
+        if (target != null) {
+            boolean slow = slowTower;
+            double slowFactor = slow ? 0.5 : 1.0;
+            int slowDuration = slow ? 90 : 0;
+
+            // Global damage çarpanını uygula
+            int dmg = (int) Math.round(bulletDamage * globalDamageMultiplier);
+
+            bullets.add(new Bullet(x, y, target, dmg, slow, slowFactor, slowDuration));
+            cooldown = fireDelay;
+        }
+    }
+
+    public boolean canUpgrade() {
+        return level < maxLevel;
+    }
+
+    public int getUpgradeCost() {
+        return 30 + level * 25;
+    }
+
+    public void upgrade() {
+        if (!canUpgrade()) return;
+        totalInvested += getUpgradeCost();
+        level++;
+        baseRange += 30;
+        bulletDamage += (slowTower ? 5 : 15);
+        fireDelay = Math.max(10, fireDelay - 6);
+    }
+
+    // Save'den yükleme için maliyet almadan upgrade
+    public void forceUpgradeWithoutCost() {
+        if (!canUpgrade()) return;
+        level++;
+        baseRange += 30;
+        bulletDamage += (slowTower ? 5 : 15);
+        fireDelay = Math.max(10, fireDelay - 6);
+    }
+
+    public int getSellValue() {
+        return (int) (totalInvested * 0.6);
+    }
+
+    public double getX() { return x; }
+    public double getY() { return y; }
+    public double getRangeBase() { return baseRange; }
+
+    // Çizim için (aura düşmanı olmasa da base menzili gösteriyoruz)
+    public double getRangeDisplay() { return baseRange; }
+
+    public TowerType getType() { return type; }
+    public int getLevel() { return level; }
+    public int getBulletDamage() { return bulletDamage; }
+    public int getFireDelay() { return fireDelay; }
+}
+
+// --------------- BULLET ---------------
+class Bullet {
+    private double x, y;
+    private double speed = 4.6;
+    private Enemy target;
+    private boolean alive = true;
+    private int damage;
+
+    private boolean slow;
+    private double slowFactor;
+    private int slowDuration;
+    // Trail (mermi izi) için
+    private java.util.List<double[]> trail = new java.util.ArrayList<>();
+    private int maxTrail = 8;
+
+    public Bullet(double x, double y, Enemy target, int damage,
+                  boolean slow, double slowFactor, int slowDuration) {
+        this.x = x;
+        this.y = y;
+        this.target = target;
+        this.damage = damage;
+        this.slow = slow;
+        this.slowFactor = slowFactor;
+        this.slowDuration = slowDuration;
+        // İlk pozisyonu trail'e ekle
+        trail.add(new double[]{x, y});
+    }
+
+    public void update() {
+        if (!alive || target == null || !target.isAlive()) {
+            alive = false;
+            return;
+        }
+        
+
+        double dx = target.getX() - x;
+        double dy = target.getY() - y;
+        double dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < speed || dist == 0) {
+            target.damage(damage);
+            if (slow) {
+                target.applySlow(slowDuration, slowFactor);
+            }
+            alive = false;
+        } else {
+            x += speed * dx / dist;
+            y += speed * dy / dist;
+
+            // Yeni pozisyonu trail'e ekle
+            trail.add(new double[]{x, y});
+            if (trail.size() > maxTrail) {
+                trail.remove(0); // en eski noktayı at
+            }}
+        }
+        public java.util.List<double[]> getTrail() {
+            return trail;
+
+    }
+
+    public boolean isAlive() { return alive; }
+    public double getX() { return x; }
+    public double getY() { return y; }
+}
+
+//--------------- METEOR EFFECT ---------------
+class MeteorEffect {
+    private double x, y;
+    private int age = 0;
+    private int maxAge = 20;      // kaç frame sürecek
+    private int maxRadius = 110;  // en büyük yarıçap
+
+    public MeteorEffect(int x, int y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    public void update() {
+        age++;
+    }
+
+    public boolean isAlive() {
+        return age < maxAge;
+    }
+
+    public void draw(Graphics2D g2) {
+        float t = age / (float) maxAge; // 0..1
+        int radius = (int) (maxRadius * t);
+        int alpha = (int) (180 * (1f - t));
+        if (alpha < 0) alpha = 0;
+
+        // Dış halka
+        g2.setStroke(new BasicStroke(3));
+        g2.setColor(new Color(255, 140, 0, alpha));
+        g2.drawOval((int) x - radius, (int) y - radius, radius * 2, radius * 2);
+
+        // İç parlama
+        int innerR = radius / 3;
+        if (innerR < 5) innerR = 5;
+        int innerAlpha = alpha - 60;
+        if (innerAlpha < 0) innerAlpha = 0;
+        g2.setColor(new Color(255, 220, 120, innerAlpha));
+        g2.fillOval((int) x - innerR, (int) y - innerR, innerR * 2, innerR * 2);
+    }
+}
+
+//--------------- DEATH PARTICLE ---------------
+class DeathParticle {
+    private double x, y;
+    private double vx, vy;
+    private int age = 0;
+    private int maxAge = 25;
+    private Color color;
+
+    public DeathParticle(double x, double y, double vx, double vy, Color color) {
+        this.x = x;
+        this.y = y;
+        this.vx = vx;
+        this.vy = vy;
+        this.color = color;
+    }
+
+    public void update() {
+        age++;
+        x += vx;
+        y += vy;
+        // hafif yerçekimi efekti
+        vy += 0.15;
+    }
+
+    public boolean isAlive() {
+        return age < maxAge;
+    }
+
+    public void draw(Graphics2D g2) {
+        float t = age / (float) maxAge; // 0..1
+        int alpha = (int) (255 * (1f - t));
+        if (alpha < 0) alpha = 0;
+
+        g2.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), alpha));
+        int size = 4;
+        g2.fillRect((int) x - size / 2, (int) y - size / 2, size, size);
+    }
+}
+
+//--------------- FLOATING TEXT ---------------
+class FloatingText {
+    private double x, y;
+    private String text;
+    private Color baseColor;
+    private int age = 0;
+    private int maxAge = 40; // ne kadar kalacak
+
+    public FloatingText(double x, double y, String text, Color color) {
+        this.x = x;
+        this.y = y;
+        this.text = text;
+        this.baseColor = color;
+    }
+
+    public void update() {
+        age++;
+        y -= 0.7; // yukarı doğru süzülsün
+    }
+
+    public boolean isAlive() {
+        return age < maxAge;
+    }
+
+    public void draw(Graphics2D g2) {
+        float t = age / (float) maxAge;
+        int alpha = (int) (255 * (1f - t));
+        if (alpha < 0) alpha = 0;
+
+        g2.setFont(new Font("Arial", Font.BOLD, 12));
+        g2.setColor(new Color(baseColor.getRed(), baseColor.getGreen(), baseColor.getBlue(), alpha));
+
+        g2.drawString(text, (int) x, (int) y);
+    }
+}

@@ -1,0 +1,33 @@
+package ders3333;
+import java.util.Scanner;
+
+public class Soru3 {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+
+        int dikdortgenNo;
+        double kenar1, kenar2, cevre, alan;
+
+        for (int i = 1; i <= 2; i++) {
+            System.out.println("\n" + i + ". dikdörtgen bilgileri");
+
+            System.out.print("Dikdörtgen no: ");
+            dikdortgenNo = scanner.nextInt();
+
+            System.out.print("Kenar 1: ");
+            kenar1 = scanner.nextDouble();
+
+            System.out.print("Kenar 2: ");
+            kenar2 = scanner.nextDouble();
+
+            cevre = 2 * (kenar1 + kenar2);
+            alan = kenar1 * kenar2;
+
+            System.out.println("Dikdörtgen No: " + dikdortgenNo +
+                               "  Çevre: " + cevre +
+                               "  Alan: " + alan);
+        }
+
+        scanner.close();
+    }
+}

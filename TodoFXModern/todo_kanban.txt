@@ -1,0 +1,2 @@
+1|SCHOOL|ödev||true|DUSUK|2026-01-09
+2|PERSONAL|Günlük tutma|adam|false|YUKSEK|2026-01-09

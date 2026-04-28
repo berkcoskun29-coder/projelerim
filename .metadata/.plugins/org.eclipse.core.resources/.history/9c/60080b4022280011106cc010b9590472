@@ -1,0 +1,42 @@
+import java.util.Scanner;
+
+public class Soru5 {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+
+        int sepetNo;
+        double alisverisTutari, indirimYuzdesi, indirimTutari, indirimliTutar;
+
+        for (int i = 1; i <= 3; i++) {
+            System.out.println("\n" + i + ". sepet bilgileri");
+
+            System.out.print("Sepet no: ");
+            sepetNo = scanner.nextInt();
+
+            System.out.print("Alışveriş tutarı: ");
+            alisverisTutari = scanner.nextDouble();
+
+            if (alisverisTutari >= 0 && alisverisTutari <= 1000) {
+                indirimYuzdesi = 10;
+            } else if (alisverisTutari <= 2000) {
+                indirimYuzdesi = 20;
+            } else if (alisverisTutari <= 3000) {
+                indirimYuzdesi = 30;
+            } else if (alisverisTutari <= 4000) {
+                indirimYuzdesi = 40;
+            } else {
+                indirimYuzdesi = 50;
+            }
+
+            indirimTutari = alisverisTutari * indirimYuzdesi / 100;
+            indirimliTutar = alisverisTutari - indirimTutari;
+
+            System.out.println("Sepet No: " + sepetNo +
+                               "  İndirimsiz Tutar: " + alisverisTutari +
+                               "  İndirim Tutarı: " + indirimTutari +
+                               "  İndirimli Tutar: " + indirimliTutar);
+        }
+
+        scanner.close();
+    }
+}

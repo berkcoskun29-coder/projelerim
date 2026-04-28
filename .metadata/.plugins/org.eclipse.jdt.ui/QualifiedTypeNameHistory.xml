@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<qualifiedTypeNameHistroy>
+    <fullyQualifiedTypeName name="java.lang.Boolean"/>
+    <fullyQualifiedTypeName name="oop1.IndividualCustomer"/>
+    <fullyQualifiedTypeName name="oop1.CorporateCustomer"/>
+    <fullyQualifiedTypeName name="javax.print.DocFlavor.STRING"/>
+    <fullyQualifiedTypeName name="Product"/>
+    <fullyQualifiedTypeName name="java.util.ArrayList"/>
+    <fullyQualifiedTypeName name="oopWithNLayeredApp.business.ProductManager"/>
+    <fullyQualifiedTypeName name="oopWithNLayeredApp.dataAccess.ProductDao"/>
+    <fullyQualifiedTypeName name="oopWithNLayeredApp.dataAccess.JdbcProductDao"/>
+    <fullyQualifiedTypeName name="oopWithNLayeredApp.dataAccess.HibernateProductDao"/>
+    <fullyQualifiedTypeName name="java.util.List"/>
+    <fullyQualifiedTypeName name="oopWithNLayeredApp.core.logging.Logger"/>
+    <fullyQualifiedTypeName name="oopWithNLayeredApp.core.logging.DatabaseLogger"/>
+    <fullyQualifiedTypeName name="oopWithNLayeredApp.core.logging.FileLogger"/>
+    <fullyQualifiedTypeName name="oopWithNLayeredApp.core.logging.MailLogger"/>
+    <fullyQualifiedTypeName name="com.sun.tools.classfile.StackMap_attribute.stack_map_frame"/>
+    <fullyQualifiedTypeName name="java.lang.String"/>
+</qualifiedTypeNameHistroy>
